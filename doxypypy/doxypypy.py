@@ -688,11 +688,27 @@ class AstWalker(NodeVisitor):
         if self.options.debug:
             stderr.write("# Function {0.name}{1}".format(node, linesep))
 
+        match = AstWalker.__indentRE.match(self.lines[node.lineno - 1])
+        indentStr = match and match.group(1) or ''
+
+        # Doxygen gets confused by types in Python, so rewrite the definition
+
+        fnDefLine = node.lineno - 1
+        while "def" not in self.lines[fnDefLine]:
+            fnDefLine += 1
+
+        arg_string = ""
+        for param in node.args.args:
+            if param.arg == "self":
+                continue
+            arg_string = arg_string + param.arg + ", "
+
+        arg_string = arg_string[:-2] # chop off the last comma
+        self.lines[fnDefLine] = "{}def {}({}):".format(indentStr, node.name, arg_string)
+
         # if it's a property, rewrite the definition to something Doxygen understands
         # (We'll use the getter for the documentation)
         if len(node.decorator_list) > 0:
-            match = AstWalker.__indentRE.match(self.lines[node.lineno-1])
-            indentStr = match and match.group(1) or ''
             if "property" == getattr(node.decorator_list[0], "id", None):
                 self.lines[node.lineno - 1] = indentStr + "{} = property".format(node.name) + linesep + indentStr + "## \private" + linesep + self.lines[node.lineno-1]
             if "setter" == getattr(node.decorator_list[0], "attr", None):
